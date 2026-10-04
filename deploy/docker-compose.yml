@@ -1,0 +1,31 @@
+# QFin mini exchange on the QFin VPS (/opt/mini-exchange).
+# Joins the vps-infra network so Caddy can route exchange.qfinuwa.org:
+#   /api/*, /ws -> exchange-server:3211, everything else -> exchange-web:3000
+# Images are built off the VPS and loaded with deploy.sh (the VPS is too small to build Next.js).
+name: mini-exchange
+
+services:
+  exchange-server:
+    image: qfin-mini-exchange-server:latest
+    container_name: exchange-server
+    restart: unless-stopped
+    volumes:
+      - exchange-data:/data
+    networks: [web]
+    mem_limit: 300m
+
+  exchange-web:
+    image: qfin-mini-exchange-web:latest
+    container_name: exchange-web
+    restart: unless-stopped
+    depends_on: [exchange-server]
+    networks: [web]
+    mem_limit: 200m
+
+networks:
+  web:
+    name: infra_web
+    external: true
+
+volumes:
+  exchange-data:

@@ -1,0 +1,58 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+__pycache__/
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+.dev-exchange/
+
+# production secrets written by deploy steps
+deploy/.prod-*
+
+# exchange runtime state, recorded data and build outputs
+server/exchange_data*.json
+server/data/
+data/
+exchange_data*.json
+exchange-server
+exchange-server-linux
+server/exchange-server
+server/exchange-server-linux
+bot-sdk.zip
+.convex/

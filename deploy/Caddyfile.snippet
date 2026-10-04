@@ -1,0 +1,6 @@
+
+exchange.qfinuwa.org {
+    @api path /api/* /ws
+    reverse_proxy @api exchange-server:3211
+    reverse_proxy exchange-web:3000
+}

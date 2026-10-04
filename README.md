@@ -19,7 +19,8 @@ ETF and up-down options on the ETF, against each other and against simulated hou
 | `bot-sdk/` | Python SDK handed to students (`exchange.py`, `README.md`, examples) |
 | `demo-bots/` | Three working bots (market maker, ETF arb, options) for testing the exchange. Organiser only |
 | `deploy/` | Dockerfiles, compose file and `deploy.sh` for the QFin VPS |
-| `PROJECT.md` | The rules and API contract (products, margin, days, scoring, endpoints) |
+| `docs/API.md` | **Full HTTP + WebSocket API reference** (every endpoint, request/response examples, errors) |
+| `PROJECT.md` | The rules (products, margin, days, scoring) and the original API contract |
 | `server/SIMULATION.md` | How the market is simulated. **Organiser only** |
 
 ## How the market works (short version)

@@ -106,6 +106,11 @@ Exchange().connect("myteam", "mypassword").download_data("data")
 
 Logging: `self.log(msg)`, `self.warn(msg)`.
 
+## Not using Python?
+
+The SDK is a thin wrapper over a plain HTTP + WebSocket API. The full reference is in `API.md`
+(ask the organisers for it if it isn't in your SDK zip).
+
 ## Tips
 
 - There is a lot of uninformed flow. Market making works, but watch your inventory.

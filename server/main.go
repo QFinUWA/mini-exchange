@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -162,6 +163,17 @@ func getInt(m map[string]interface{}, key string) int {
 // --- Routes ---
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "backtest":
+			runBacktestCmd(os.Args[2:])
+			return
+		case "runner":
+			runRunnerCmd(os.Args[2:])
+			return
+		}
+	}
+
 	exchange = NewExchange("exchange_data.json")
 	exchange.broadcast = broadcastAll
 
@@ -219,6 +231,17 @@ func main() {
 		}
 	}()
 
+	mux := newMux()
+
+	port := ":3211"
+	log.Printf("Exchange server starting on %s", port)
+	if err := http.ListenAndServe(port, mux); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// newMux builds every HTTP route. The backtest serves bot calls through it too.
+func newMux() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// WebSocket
@@ -636,11 +659,8 @@ func main() {
 		jsonResp(w, exchange.GetRecentTrades(userID), 200)
 	})
 
-	port := ":3211"
-	log.Printf("Exchange server starting on %s", port)
-	if err := http.ListenAndServe(port, mux); err != nil {
-		log.Fatal(err)
-	}
+	addSubmissionRoutes(mux)
+	return mux
 }
 
 func resolveProduct(symbol string) string {

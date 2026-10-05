@@ -1,0 +1,17 @@
+# Backtest runner for uploaded bots. Same Go binary as the server ("runner" mode) plus Python.
+# Runs with no network (see docker-compose.yml). The runner itself is root so it can start each
+# bot as nobody in a private folder; bots can't read other uploads or the exchange state.
+FROM golang:1.25-alpine AS build
+WORKDIR /src
+COPY server/go.mod server/go.sum ./
+RUN go mod download
+COPY server/*.go ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /exchange-server .
+
+FROM python:3.12-slim
+# Libraries bots may import. Keep this list in bot-sdk/README.md in sync.
+RUN pip install --no-cache-dir numpy pandas scipy scikit-learn statsmodels
+COPY --from=build /exchange-server /usr/local/bin/exchange-server
+COPY bot-sdk/exchange.py /sdk/exchange.py
+RUN chmod 755 /sdk && chmod 644 /sdk/exchange.py
+CMD ["exchange-server", "runner", "-jobs", "/jobs", "-work", "/work", "-sdk", "/sdk"]

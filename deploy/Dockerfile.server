@@ -9,8 +9,9 @@ FROM alpine:3.22
 RUN apk add --no-cache ca-certificates tzdata && adduser -D -u 1001 exchange
 COPY --from=build /exchange-server /usr/local/bin/exchange-server
 # State (exchange_data.json) and recorded Parquet files (data/) live in the volume.
+# Bot uploads (bots/) are a separate volume shared with the runner.
 WORKDIR /data
-RUN chown exchange /data
+RUN mkdir -p /data/bots && chown -R exchange /data
 USER exchange
 EXPOSE 3211
 CMD ["exchange-server"]

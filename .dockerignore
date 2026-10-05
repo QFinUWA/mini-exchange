@@ -7,7 +7,8 @@ node_modules
 .vercel
 demo-bots
 admin-bots
-bot-sdk
+bot-sdk/*
+!bot-sdk/exchange.py
 bot-sdk.zip
 deploy/.prod-*
 server/data

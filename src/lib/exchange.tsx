@@ -59,7 +59,10 @@ export interface ExchangeConfig {
   marginRates: { fruit: number; etf: number };
   enabledExpiries: number[];
   clickTrading: boolean; // click a book level to trade in the web UI
+  backtestDays: number; // uploaded bots: simulated trading days per backtest
+  backtestDayMin: number; // uploaded bots: minutes per simulated day
   simEnabled?: boolean; // admin only
+  backtestSeed?: number; // admin only
 }
 
 export interface OptionWindow {
@@ -839,6 +842,9 @@ export type ConfigUpdate = Partial<{
   simEnabled: boolean;
   enabledExpiries: number[];
   clickTrading: boolean;
+  backtestDays: number;
+  backtestDayMin: number;
+  backtestSeed: number;
 }>;
 
 export function useAdminActions() {
@@ -921,6 +927,7 @@ export function useAdminActions() {
         }),
 
       endDay: () => apiFetch("/api/admin/end-day", { method: "POST" }),
+      rerunBots: () => apiFetch<{ queued: number }>("/api/admin/rerun-bots", { method: "POST" }),
     }),
     [],
   );

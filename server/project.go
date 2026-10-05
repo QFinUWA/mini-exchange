@@ -45,6 +45,20 @@ type Config struct {
 	EnabledExpiries []int   `json:"enabledExpiries"`
 	// Stored inverted so configs saved before this field existed keep click trading on.
 	ClickTradingOff bool `json:"clickTradingOff"`
+	// Uploaded bot backtests (0 = default, so older saved configs keep working).
+	BacktestDays   int    `json:"backtestDays"`
+	BacktestDayMin int    `json:"backtestDayMin"`
+	BacktestSeed   uint64 `json:"backtestSeed"`
+}
+
+func (c *Config) backtestDays() int {
+	if c.BacktestDays > 0 { return c.BacktestDays }
+	return 20
+}
+
+func (c *Config) backtestDayMin() int {
+	if c.BacktestDayMin > 0 { return c.BacktestDayMin }
+	return 60
 }
 
 func defaultConfig() *Config {
@@ -75,7 +89,10 @@ type PublicConfig struct {
 	MarginRates     map[string]float64 `json:"marginRates"`
 	EnabledExpiries []int              `json:"enabledExpiries"`
 	ClickTrading    bool               `json:"clickTrading"`
+	BacktestDays    int                `json:"backtestDays"`
+	BacktestDayMin  int                `json:"backtestDayMin"`
 	SimEnabled      *bool              `json:"simEnabled,omitempty"`
+	BacktestSeed    *uint64            `json:"backtestSeed,omitempty"`
 }
 
 func (ex *Exchange) publicConfig(isAdmin bool) PublicConfig {
@@ -86,10 +103,14 @@ func (ex *Exchange) publicConfig(isAdmin bool) PublicConfig {
 		MarginRates:     map[string]float64{KindFruit: c.FruitMarginRate, KindEtf: c.EtfMarginRate},
 		EnabledExpiries: append([]int{}, c.EnabledExpiries...),
 		ClickTrading:    !c.ClickTradingOff,
+		BacktestDays:    c.backtestDays(),
+		BacktestDayMin:  c.backtestDayMin(),
 	}
 	if isAdmin {
 		v := c.SimEnabled
 		pc.SimEnabled = &v
+		seed := c.BacktestSeed
+		pc.BacktestSeed = &seed
 	}
 	return pc
 }
@@ -217,7 +238,7 @@ func (ex *Exchange) ensureProject() {
 		ex.Symbols[EtfSymbol] = p.ID
 	}
 
-	now := time.Now().Unix()
+	now := ex.now().Unix()
 	for _, e := range allExpiries {
 		sym := fmt.Sprintf("up%d", e)
 		pid, ok := ex.Symbols[sym]
@@ -474,7 +495,7 @@ func (ex *Exchange) EndDayNow(token string) error {
 	u, err := ex.Authenticate(token)
 	if err != nil { return err }
 	if !u.IsAdmin { return fmt.Errorf("admin required") }
-	ex.endDay(time.Now().Unix())
+	ex.endDay(ex.now().Unix())
 	return nil
 }
 
@@ -555,6 +576,18 @@ func (ex *Exchange) UpdateConfig(token string, body map[string]interface{}) (Pub
 		f, ok := v.(float64)
 		if !ok || f < 1 { return PublicConfig{}, fmt.Errorf("dayLengthMin must be >= 1") }
 		c.DayLengthMin = int(f)
+	}
+	for key, dst := range map[string]*int{"backtestDays": &c.BacktestDays, "backtestDayMin": &c.BacktestDayMin} {
+		if v, ok := body[key]; ok {
+			f, ok := v.(float64)
+			if !ok || f < 1 || f > 1000 { return PublicConfig{}, fmt.Errorf("%s must be 1-1000", key) }
+			*dst = int(f)
+		}
+	}
+	if v, ok := body["backtestSeed"]; ok {
+		f, ok := v.(float64)
+		if !ok || f < 0 { return PublicConfig{}, fmt.Errorf("backtestSeed must be a number >= 0") }
+		c.BacktestSeed = uint64(f)
 	}
 	if v, ok := body["phase"]; ok {
 		s, _ := v.(string)

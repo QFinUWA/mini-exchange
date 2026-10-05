@@ -11,8 +11,29 @@ services:
     restart: unless-stopped
     volumes:
       - exchange-data:/data
+      - bot-jobs:/data/bots
     networks: [web]
     mem_limit: 300m
+
+  # Backtests uploaded bots, one at a time. No network at all; it only shares the bot-jobs
+  # volume with the server. Capped so the live exchange keeps most of the 1 CPU VPS.
+  exchange-runner:
+    image: qfin-mini-exchange-runner:latest
+    container_name: exchange-runner
+    restart: unless-stopped
+    network_mode: none
+    volumes:
+      - bot-jobs:/jobs
+    tmpfs:
+      - /work:size=100m,mode=0711
+      - /tmp:size=50m,mode=0755
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID, CHOWN, DAC_OVERRIDE, FOWNER, KILL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    cpus: 0.7
+    mem_limit: 450m
 
   exchange-web:
     image: qfin-mini-exchange-web:latest
@@ -29,3 +50,4 @@ networks:
 
 volumes:
   exchange-data:
+  bot-jobs:

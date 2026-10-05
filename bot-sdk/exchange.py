@@ -50,11 +50,18 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
-import requests
-import websockets.sync.client as ws_client
+try:
+    import requests
+    import websockets.sync.client as ws_client
+except ImportError:  # the backtest needs neither
+    requests = ws_client = None
 
 
 DEFAULT_URL = "https://exchange.qfinuwa.org"
+
+# Set by the exchange when it runs an uploaded bot in the backtest. The bot then talks to the
+# simulated exchange over two pipes instead of HTTP/WebSocket; nothing else changes.
+BACKTEST = os.environ.get("QFIN_BACKTEST") == "1"
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -186,6 +193,23 @@ def Cancel(order_id: str) -> dict:
 # Exchange base class -- subclass this and override on_tick()
 # ---------------------------------------------------------------------------
 
+class _BacktestResponse:
+    """Just enough of requests.Response for the SDK."""
+
+    def __init__(self, status: int, body) -> None:
+        self.status_code = status
+        self.ok = 200 <= status < 300
+        self._body = body
+        self.text = body if isinstance(body, str) else json.dumps(body)
+
+    def json(self):
+        return self._body
+
+    def raise_for_status(self) -> None:
+        if not self.ok:
+            raise RuntimeError(f"HTTP {self.status_code}: {self.text}")
+
+
 class Exchange:
     """Base class for trading bots.
 
@@ -203,7 +227,8 @@ class Exchange:
         self._state_version: int = 0
         self._state_ready = threading.Event()
         self._state_updated_at: float = 0.0
-        self._http = requests.Session()   # keep-alive: much faster than a new connection per order
+        # keep-alive: much faster than a new connection per order
+        self._http = requests.Session() if requests and not BACKTEST else None
 
     # ------------------------------------------------------------------
     # Override this
@@ -369,7 +394,7 @@ class Exchange:
         params: dict = {"limit": limit}
         if expiry_min:
             params["expiry"] = expiry_min
-        resp = self._http.get(f"{self._base_url}/api/option-windows", params=params)
+        resp = self._get("/api/option-windows", params)
         if not resp.ok:
             return []
         return [
@@ -448,6 +473,8 @@ class Exchange:
         ms = self._state.get("serverTime")
         if not ms:
             return time.time()
+        if BACKTEST:
+            return ms / 1000
         return ms / 1000 + (time.time() - self._state_updated_at)
 
     def open_orders(self, symbol: Optional[str] = None) -> list[OpenOrder]:
@@ -550,7 +577,9 @@ class Exchange:
         Finished days are skipped if already downloaded.  Returns the paths written.
         Works before run() too: ``Exchange().connect(...).download_data()``.
         """
-        import os
+        if BACKTEST:
+            self.warn("download_data() does nothing in the backtest")
+            return []
         resp = self._http.get(f"{self._base_url}/api/data")
         resp.raise_for_status()
         files = resp.json()
@@ -601,6 +630,10 @@ class Exchange:
         parser.add_argument("--tick", type=int, default=None)
         cli, _ = parser.parse_known_args()
 
+        if BACKTEST:
+            self._backtest_loop()
+            return
+
         if cli.tick is not None:
             tick_ms = cli.tick
         self._tick_ms = tick_ms
@@ -628,6 +661,10 @@ class Exchange:
 
     def connect(self, username: str, password: str, *, url: Optional[str] = None) -> "Exchange":
         """Log in without starting the tick loop (run() calls this for you)."""
+        if BACKTEST:
+            return self
+        if requests is None:
+            self._die("pip install requests websockets")
         self._base_url = (url or os.environ.get("EXCHANGE_URL") or DEFAULT_URL).rstrip("/")
         self._ws_url = re.sub(r"^http", "ws", self._base_url) + "/ws"
         resp = self._http.post(f"{self._base_url}/api/auth", json={"username": username, "password": password})
@@ -689,7 +726,58 @@ class Exchange:
         return resp.json()
 
     def _post(self, path: str, *, method: str = "POST", json: dict = None) -> requests.Response:
+        if BACKTEST:
+            return self._bt_call(method, path, json)
         return self._http.request(method, f"{self._base_url}{path}", json=json)
+
+    def _get(self, path: str, params: Optional[dict] = None) -> requests.Response:
+        if BACKTEST:
+            from urllib.parse import urlencode
+            return self._bt_call("GET", path + ("?" + urlencode(params) if params else ""), None)
+        return self._http.get(f"{self._base_url}{path}", params=params)
+
+    # --- backtest transport (fd 3: from the exchange, fd 4: to the exchange) ---
+
+    def _backtest_loop(self) -> None:
+        import traceback
+        self._bt_in = os.fdopen(3, "r")
+        self._bt_out = os.fdopen(4, "w")
+        self._bt_send({"type": "ready"})
+        errors = 0
+        while True:
+            line = self._bt_in.readline()
+            if not line:
+                return
+            msg = json.loads(line)
+            if msg["type"] == "end":
+                return
+            if msg["type"] != "tick":
+                continue
+            self._state = msg["state"]
+            self._state_version += 1
+            self._state_updated_at = time.time()
+            self._state_ready.set()
+            try:
+                self.on_tick()
+            except Exception:
+                errors += 1
+                if errors <= 20:
+                    traceback.print_exc()
+                elif errors == 21:
+                    self.warn("more on_tick errors, not printing them")
+            self._bt_send({"type": "done"})
+
+    def _bt_send(self, msg: dict) -> None:
+        self._bt_out.write(json.dumps(msg) + "\n")
+        self._bt_out.flush()
+
+    def _bt_call(self, method: str, path: str, body: Optional[dict]) -> "_BacktestResponse":
+        self._bt_send({"type": "call", "method": method, "path": path, "body": body})
+        line = self._bt_in.readline()
+        if not line:
+            sys.exit(0)
+        msg = json.loads(line)
+        return _BacktestResponse(msg.get("status", 500), msg.get("body"))
 
     def _symbol_to_id(self, symbol: str) -> Optional[str]:
         for p in self._state.get("products", []):

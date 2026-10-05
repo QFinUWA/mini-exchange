@@ -233,7 +233,9 @@ type Exchange struct {
 	DayStart      int64                 `json:"dayStart"`
 	Sim           *SimState             `json:"sim"`
 
-	rec *Recorder
+	rec   *Recorder
+	clock  func() time.Time // nil = wall clock
+	onFill func(*Fill)      // optional, backtest stats
 
 	nextID atomic.Int64
 
@@ -616,7 +618,7 @@ func (ex *Exchange) SetRateLimit(token, targetUserID string, ms int) error {
 func (ex *Exchange) checkRateLimit(u *User) error {
 	limit := u.RateLimitMs
 	if limit <= 0 { limit = 10 }
-	now := time.Now().UnixMilli()
+	now := ex.now().UnixMilli()
 	if now-u.lastOrderAt < int64(limit) {
 		return fmt.Errorf("rate limited (%dms cooldown)", limit)
 	}
@@ -691,7 +693,7 @@ func (ex *Exchange) matchOrder(order *Order) []*Fill {
 
 		fillQty := min(order.Remaining(), rest.Remaining())
 		fillPrice := rest.Price
-		now := time.Now().UnixMilli()
+		now := ex.now().UnixMilli()
 
 		buyUID := order.UserID
 		sellUID := rest.UserID
@@ -703,6 +705,7 @@ func (ex *Exchange) matchOrder(order *Order) []*Fill {
 			Price: fillPrice, Qty: fillQty, CreatedAt: now,
 		}
 		ex.Fills = append(ex.Fills, fill)
+		if ex.onFill != nil { ex.onFill(fill) }
 		if len(ex.Fills) > 500 { ex.Fills = ex.Fills[len(ex.Fills)-500:] }
 		ex.LastPrice[order.ProductID] = fillPrice
 		if !ex.isHouse(buyUID) { ex.account(buyUID).Active = true }
@@ -911,7 +914,7 @@ func (ex *Exchange) placeOrderInternal(userID, productID, side string, price flo
 	order := &Order{
 		ID: ex.genID("o"), UserID: userID, ProductID: productID,
 		Side: side, Price: price, Qty: qty, FilledQty: 0,
-		OrderType: orderType, CreatedAt: time.Now().UnixMilli(),
+		OrderType: orderType, CreatedAt: ex.now().UnixMilli(),
 	}
 
 	fills := ex.matchOrder(order)
@@ -1477,7 +1480,7 @@ func (ex *Exchange) SnapshotPnl() {
 	ex.mu.Lock()
 	defer ex.mu.Unlock()
 
-	now := time.Now().UnixMilli()
+	now := ex.now().UnixMilli()
 	marks := ex.markPrices()
 	for _, u := range ex.Users {
 		if u.IsHouse { continue }
@@ -1522,7 +1525,7 @@ func (ex *Exchange) SnapshotPrices() {
 	ex.mu.Lock()
 	defer ex.mu.Unlock()
 
-	now := time.Now().UnixMilli()
+	now := ex.now().UnixMilli()
 	for _, p := range ex.Products {
 		mid := ex.getMidPrice(p.ID)
 		if mid == nil { continue }
@@ -1709,7 +1712,7 @@ func (ex *Exchange) buildUserStateLocked(userID string, isAdmin bool, shared *Sh
 	ws := FullWsState{
 		BotState: BotState{
 			ExchangeOpen:  shared.ExchangeOpen,
-			ServerTime:    time.Now().UnixMilli(),
+			ServerTime:    ex.now().UnixMilli(),
 			Products:      shared.Products,
 			Books:         shared.Books,
 			Positions:     positions,
@@ -1856,4 +1859,10 @@ func (ex *Exchange) doBroadcast() {
 func min(a, b int) int {
 	if a < b { return a }
 	return b
+}
+
+// now is the exchange clock: wall time, or simulated time in a backtest.
+func (ex *Exchange) now() time.Time {
+	if ex.clock != nil { return ex.clock() }
+	return time.Now()
 }

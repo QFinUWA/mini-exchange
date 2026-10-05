@@ -31,6 +31,28 @@ class MyBot(Exchange):
 MyBot().run()
 ```
 
+## Submitting your bot (this is what gets scored)
+
+Upload your bot on the **Bots** page of the exchange website. The server runs it against the
+simulated market for many trading days (the page shows how many), much faster than real time,
+and scores it: **mean daily P&L - standard deviation of daily P&L**. The Bots page shows your
+score, daily P&L, everything your bot printed, and a leaderboard of every team's latest bot.
+
+- Upload the same file you run locally. No changes needed: the SDK notices it is in the backtest
+  and talks to the simulated exchange instead of the internet.
+- One `.py` file, or a `.zip` with `bot.py` at the top plus any other files it imports (max 5 MB).
+  Your `exchange.py` is replaced with the official one.
+- `on_tick` runs once per simulated second (`--tick` is ignored). `server_time` is simulated time.
+- Your bot trades alone against the house bots, not against other teams.
+- No internet. `download_data()` does nothing. Available libraries: numpy, pandas, scipy,
+  scikit-learn, statsmodels (plus the standard library).
+- Limits: 5 s per `on_tick`, 100 API calls per tick, 30 min per run, 1 GB memory. Going over a
+  limit stops the run with an error; exceptions inside `on_tick` are printed and the run continues.
+- One bot in the queue per team at a time.
+
+Running your bot live (`python my_bot.py -u ...`) is still the best way to test it: same API,
+same market, real time.
+
 ## Products
 
 | Symbols | What | Notes |

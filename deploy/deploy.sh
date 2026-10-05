@@ -17,8 +17,9 @@ remote() {
 
 docker build -f deploy/Dockerfile.server -t qfin-mini-exchange-server:latest .
 docker build -f deploy/Dockerfile.web    -t qfin-mini-exchange-web:latest .
+docker build -f deploy/Dockerfile.runner -t qfin-mini-exchange-runner:latest .
 
 echo "shipping images..."
-docker save qfin-mini-exchange-server:latest qfin-mini-exchange-web:latest | gzip -1 | remote "gunzip | docker load"
+docker save qfin-mini-exchange-server:latest qfin-mini-exchange-web:latest qfin-mini-exchange-runner:latest | gzip -1 | remote "gunzip | docker load"
 remote "mkdir -p $REMOTE_DIR && cat > $REMOTE_DIR/docker-compose.yml" < deploy/docker-compose.yml
 remote "cd $REMOTE_DIR && docker compose up -d && docker image prune -f >/dev/null && docker compose ps"

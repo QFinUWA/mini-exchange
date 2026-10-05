@@ -6,6 +6,9 @@ Live at https://exchange.qfinuwa.org (VPS `qfin-new`, 66.226.147.134).
   `mini-exchange_exchange-data` volume) and `exchange-web` (Next.js) on the `infra_web` network.
 - Caddy (in `/opt/infra`) routes `exchange.qfinuwa.org`: `/api/*` and `/ws` to the server, the rest
   to the web app. The block is in `Caddyfile.snippet`.
+- `exchange-runner` backtests uploaded bots. It has no network and only shares the
+  `mini-exchange_bot-jobs` volume (mounted at `/data/bots` in the server). Capped at 0.7 CPU and
+  450 MB so the live exchange keeps running smoothly; `docker logs exchange-runner` shows each run.
 - Images are built locally because the VPS (1 CPU, 1 GB RAM) can't build Next.js.
 
 Redeploy after code changes:

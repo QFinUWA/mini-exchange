@@ -10,6 +10,7 @@ another language or to understand what the SDK does.
 - [Live state (WebSocket)](#live-state-websocket)
 - [Trading](#trading): order, cancel, cancel-all, batch, ETF swap
 - [Market and account data](#market-and-account-data)
+- [Bot submissions](#bot-submissions): upload a bot for the scored backtest
 - [Admin](#admin)
 - [Errors](#errors)
 
@@ -249,6 +250,39 @@ minute; earlier days are final.
 | `option_trades` | `ts, expiry_min, window_open, price_up, size, aggressor` (`buy_up`/`sell_up`) |
 | `option_windows` | `expiry_min, window_open, strike, settle, up_won, price_source` |
 
+## Bot submissions
+
+Teams are scored by uploading a bot, which the server backtests against the simulated market
+(`config.backtestDays` days of `config.backtestDayMin` minutes) and scores as mean - std of daily
+P&L. The bot runs with the Python SDK, which routes its calls into the simulation; the calls it
+can make there are `/api/order`, `/api/cancel-all`, `/api/batch`, `/api/etf-swap`, `/api/state`,
+`/api/config`, `/api/option-windows`, `/api/products`, `/api/exchange-state`, `/api/trades`.
+
+| Endpoint | Auth | |
+|---|---|---|
+| `POST /api/submissions` | yes | Upload: multipart form field `file`, a `.py` or a `.zip` with `bot.py` (max 5 MB). Fails if your previous bot is still queued or running |
+| `GET /api/submissions` | yes | Your submissions, newest first (admins: everyone's) |
+| `GET /api/submissions/<id>` | yes | One submission including the result's daily P&L and the bot's output (`result.log`) |
+| `GET /api/bot-leaderboard` | no | Each team's latest successful run, best score first |
+
+```python
+requests.post(f"{BASE}/api/submissions", headers=H, files={"file": open("my_bot.py", "rb")})
+```
+```jsonc
+{
+  "id": "s_1791192184677_62b3fa", "username": "team-alpha", "filename": "my_bot.py",
+  "createdAt": 1791192184677, "params": {"days": 20, "dayMin": 60},
+  "status": "done",              // queued (with queuePosition), running, done, error
+  "result": {
+    "status": "done", "error": "",
+    "days": [{"day": "2026-01-01 00:00", "pnl": 154.56, "busts": 0}],
+    "meanDailyPnl": 152.2, "stdDailyPnl": 3.5, "score": 148.7, "busts": 0,
+    "fills": 14514, "volume": 66565, "wallSec": 2.9,
+    "log": "..."                 // only from /api/submissions/<id>
+  }
+}
+```
+
 ## Admin
 
 All require an admin token. All are `POST` except `GET /api/admin/users`.
@@ -256,8 +290,9 @@ All require an admin token. All are `POST` except `GET /api/admin/users`.
 | Endpoint | Body | Effect |
 |---|---|---|
 | `/api/admin/toggle` | none | Open/close the exchange. Returns `{"isOpen": bool}`. House bots only trade while open |
-| `/api/admin/config` | any subset of `etfFee`, `fruitMarginRate`, `etfMarginRate`, `startingCash`, `dayLengthMin`, `phase` (`training`/`testing`), `simEnabled`, `enabledExpiries` (subset of `[5,15,60]`), `clickTrading` | Returns the full config. Disabling an expiry cancels its orders and refunds positions at entry price |
+| `/api/admin/config` | any subset of `etfFee`, `fruitMarginRate`, `etfMarginRate`, `startingCash`, `dayLengthMin`, `phase` (`training`/`testing`), `simEnabled`, `enabledExpiries` (subset of `[5,15,60]`), `clickTrading`, `backtestDays`, `backtestDayMin`, `backtestSeed` | Returns the full config. Disabling an expiry cancels its orders and refunds positions at entry price |
 | `/api/admin/end-day` | none | End the trading day now (settle, record P&L, reset everyone) |
+| `/api/admin/rerun-bots` | none | Queue every team's latest bot again with the current backtest settings. Returns `{"queued": n}` |
 | `/api/admin/reset` | `{"targetUserId": "u_15"}` or `{}` | Reset one user, or **everything** if no target |
 | `/api/admin/users` (GET) | | All users with `isAdmin`, `noPositionLimit`, `rateLimitMs` |
 | `/api/admin/no-pos-limit` | `{"targetUserId": "u_15", "value": true}` | Exempt a user from position limits |

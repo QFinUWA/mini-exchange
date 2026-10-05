@@ -48,7 +48,7 @@ deploy/.prod-*
 # exchange runtime state, recorded data and build outputs
 server/exchange_data*.json
 server/data/
-data/
+/data/
 exchange_data*.json
 exchange-server
 exchange-server-linux

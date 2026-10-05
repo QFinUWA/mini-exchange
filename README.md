@@ -14,7 +14,7 @@ ETF and up-down options on the ETF, against each other and against simulated hou
 
 | Path | What |
 |---|---|
-| `server/` | Go exchange: matching engine, accounts, margin, trading days, options, scoring, market data recorder, house bots. Single process, state saved to `exchange_data.json` |
+| `server/` | Go exchange: matching engine, accounts, margin, trading days, options, scoring, market data recorder, house bots. Single process, state saved to `exchange_data.json`. Same binary has `backtest` and `runner` modes for uploaded bots |
 | `src/` | Next.js web UI: trading screen, leaderboard, positions, prices, data downloads, admin |
 | `bot-sdk/` | Python SDK handed to students (`exchange.py`, `README.md`, examples) |
 | `demo-bots/` | Three working bots (market maker, ETF arb, options) for testing the exchange. Organiser only |
@@ -36,6 +36,31 @@ ETF and up-down options on the ETF, against each other and against simulated hou
   "bust" (reset, loss still counts). **Score = mean daily P&L - std of daily P&L.**
 - Every second of market data is recorded to Parquet with the same tables and columns as the
   handout data (Data page, or `self.download_data()` in the SDK).
+
+## Uploaded bots (how teams are scored)
+
+Live trading can't score a bot properly (it would take weeks of real time), so teams upload their
+bot on the **Bots** page and the server backtests it:
+
+- `server/backtest.go`: runs the real exchange code (house bots, matching, margin, days, options)
+  on a simulated clock, `backtestDays` days of `backtestDayMin` minutes (admin settings, default
+  20 x 60), as fast as the bot allows (~2000 simulated seconds per second for a simple bot on a
+  desktop). The bot is the normal SDK bot in a Python subprocess; the SDK sees `QFIN_BACKTEST=1`
+  and sends its API calls over pipes into the real HTTP handlers. `on_tick` runs once per
+  simulated second. Fair values use their own RNG stream seeded by `backtestSeed`, so every team
+  sees the same fair value paths.
+- `server/submissions.go`: upload / list / leaderboard endpoints. Uploads go to `bots/<id>/`.
+- `server/runner.go` (`exchange-runner` container): picks up queued uploads one at a time and runs
+  each bot as `nobody` in a private folder, with no network, prlimits, and timeouts (5 s per tick,
+  30 min per run). Bots can't see other uploads or the exchange state.
+- For the final ranking, set a fresh `backtestSeed` (and more days) on the admin page and press
+  **Re-run all bots**.
+
+Try one locally without the queue:
+
+```bash
+cd server && go run . backtest -bot ../bot-sdk/my_bot.py -sdk ../bot-sdk -days 2 -day-min 60
+```
 
 ## Running a competition (admin page)
 
@@ -68,6 +93,9 @@ NEXT_PUBLIC_EXCHANGE_URL=http://localhost:3211 npm run dev
 
 # three demo bots against the local server (accounts are created on first run)
 demo-bots/run_all.sh
+
+# backtest runner for the Bots page (no sandbox locally: -uid 0)
+cd server && go run . runner -jobs bots -work /tmp/bt-work -sdk ../bot-sdk -uid 0 -owner 0
 ```
 
 Register in the UI first to become the local admin, then open the exchange from the Admin page.

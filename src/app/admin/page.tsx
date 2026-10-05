@@ -616,6 +616,9 @@ function ProjectConfigForm({ config }: { config: ExchangeConfig }) {
     fruitMarginRate: String(config.marginRates.fruit),
     etfMarginRate: String(config.marginRates.etf),
     expiries: new Set(config.enabledExpiries),
+    backtestDays: String(config.backtestDays),
+    backtestDayMin: String(config.backtestDayMin),
+    backtestSeed: String(config.backtestSeed ?? 0),
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null);
@@ -645,6 +648,9 @@ function ProjectConfigForm({ config }: { config: ExchangeConfig }) {
       etfFee: Number(form.etfFee),
       fruitMarginRate: Number(form.fruitMarginRate),
       etfMarginRate: Number(form.etfMarginRate),
+      backtestDays: Number(form.backtestDays),
+      backtestDayMin: Number(form.backtestDayMin),
+      backtestSeed: Number(form.backtestSeed),
     };
     if (Object.values(nums).some((v) => !Number.isFinite(v))) {
       flash("All fields must be numbers", true);
@@ -666,6 +672,19 @@ function ProjectConfigForm({ config }: { config: ExchangeConfig }) {
       flash("Day ended");
     } catch (err) {
       flash(errorMessage(err, "End day failed"), true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const rerunBots = async () => {
+    if (!window.confirm("Backtest every team's latest bot again with the current backtest settings? They run one at a time.")) return;
+    setBusy(true);
+    try {
+      const r = await admin.rerunBots();
+      flash(`Queued ${r.queued} bot${r.queued === 1 ? "" : "s"}`);
+    } catch (err) {
+      flash(errorMessage(err, "Re-run failed"), true);
     } finally {
       setBusy(false);
     }
@@ -713,6 +732,18 @@ function ProjectConfigForm({ config }: { config: ExchangeConfig }) {
           {field("ETF create/redeem fee ($/unit)", "etfFee")}
           {field("Fruit margin rate", "fruitMarginRate", "Fraction of notional, e.g. 0.2")}
           {field("ETF margin rate", "etfMarginRate")}
+        </div>
+
+        <div>
+          <span className="text-xs text-zinc-400">Uploaded bot backtests (Bots page)</span>
+          <div className="mt-2 grid grid-cols-2 gap-4 md:grid-cols-3">
+            {field("Simulated days", "backtestDays", "Score = mean - std of these days")}
+            {field("Minutes per simulated day", "backtestDayMin", "Runtime grows with days x minutes")}
+            {field("Market seed", "backtestSeed", "Same seed = same fair value paths for every team. Hidden from teams")}
+          </div>
+          <p className="mt-2 text-[11px] text-zinc-600">
+            New settings apply to new uploads. Use &quot;Re-run all bots&quot; to rescore every team&apos;s latest bot (e.g. with a fresh seed for the final ranking).
+          </p>
         </div>
 
         <div>
@@ -769,6 +800,14 @@ function ProjectConfigForm({ config }: { config: ExchangeConfig }) {
             title="Clicking a price level in the web UI sends an IOC order. Bots are unaffected."
           >
             {config.clickTrading ? "Disable click trading" : "Enable click trading"}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={rerunBots}
+            className="rounded bg-zinc-800 px-5 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
+          >
+            Re-run all bots
           </button>
           <button
             type="button"

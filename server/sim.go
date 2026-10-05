@@ -12,11 +12,20 @@ import (
 	"time"
 )
 
-var simRng = func() *rand.Rand {
+// simRng drives the house bots, fvRng the fair values. They are separate so a backtest with a
+// fixed seed gives every bot the same fair value paths, whatever the bot does to the flow.
+var simRng, fvRng = randomRng(), randomRng()
+
+func randomRng() *rand.Rand {
 	var b [16]byte
 	cryptorand.Read(b[:])
 	return rand.New(rand.NewPCG(binary.LittleEndian.Uint64(b[:8]), binary.LittleEndian.Uint64(b[8:])))
-}()
+}
+
+func seedSim(seed uint64) {
+	simRng = rand.New(rand.NewPCG(seed, 1))
+	fvRng = rand.New(rand.NewPCG(seed, 2))
+}
 
 const simTickSec = 0.25
 
@@ -119,7 +128,7 @@ func (ex *Exchange) fairValue(sym string) float64 {
 // simSecond advances every fruit's fair value by one second.
 func (ex *Exchange) simSecond(sec int64) {
 	s := ex.Sim
-	n := simRng.NormFloat64
+	n := fvRng.NormFloat64
 	pull := func(x, anchor float64) float64 { return -(x - anchor) / 20000 }
 
 	// apples: mean reverts to a slowly wandering level.
@@ -143,7 +152,7 @@ func (ex *Exchange) simSecond(sec int64) {
 
 	// strawberries: rare jumps that half revert over the next few minutes.
 	st := s.FV["strawberries"]
-	if simRng.Float64() < 1.0/900 {
+	if fvRng.Float64() < 1.0/900 {
 		j := 0.25 * n()
 		st += j
 		s.StrawRev -= 0.5 * j
@@ -168,7 +177,7 @@ func (ex *Exchange) SimTick() {
 	defer ex.mu.Unlock()
 	if !ex.IsOpen || !ex.Config.SimEnabled || ex.Sim == nil { return }
 
-	now := time.Now()
+	now := ex.now()
 	mm, flow, inf, opt := ex.houseID("house-mm"), ex.houseID("house-flow"), ex.houseID("house-informed"), ex.houseID("house-options")
 	ex.cancelStale(flow, now.UnixMilli()-30000)
 

@@ -43,6 +43,7 @@ export default function Header() {
             {navLink("/positions", "Positions")}
             {navLink("/prices", "Prices")}
             {navLink("/data", "Data")}
+            {navLink("/bots", "Bots")}
             {isAdmin && navLink("/admin", "Admin")}
           </nav>
         </div>

@@ -46,7 +46,8 @@ score, daily P&L, everything your bot printed, and a leaderboard of every team's
 - Your bot trades alone against the house bots, not against other teams.
 - No internet. `download_data()` does nothing. Available libraries: numpy, pandas, scipy,
   scikit-learn, statsmodels (plus the standard library).
-- Limits: 5 s per `on_tick`, 100 API calls per tick, 30 min per run, 1 GB memory. Going over a
+- Limits: 5 s per `on_tick`, 100 API calls per tick, 30 min per run, about 250 MB of
+  memory. Going over a
   limit stops the run with an error; exceptions inside `on_tick` are printed and the run continues.
 - One bot in the queue per team at a time.
 

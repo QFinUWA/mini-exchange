@@ -32,8 +32,8 @@ services:
     cap_add: [SETUID, SETGID, CHOWN, DAC_OVERRIDE, FOWNER, KILL]
     security_opt: [no-new-privileges:true]
     pids_limit: 128
-    cpus: 0.7
-    mem_limit: 450m
+    cpus: 0.5
+    mem_limit: 300m
 
   exchange-web:
     image: qfin-mini-exchange-web:latest

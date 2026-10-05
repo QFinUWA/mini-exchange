@@ -148,7 +148,7 @@ function Upload({ submissions, onUploaded }: { submissions: Submission[] | null;
         <li>Same SDK, no changes needed: subclass <code className="text-zinc-300">Exchange</code> and call <code className="text-zinc-300">.run()</code>. <code className="text-zinc-300">on_tick</code> runs once per simulated second.</li>
         <li>Upload one <code className="text-zinc-300">.py</code> file, or a <code className="text-zinc-300">.zip</code> with <code className="text-zinc-300">bot.py</code> plus your other files (max 5 MB).</li>
         <li>No internet access. numpy, pandas, scipy, scikit-learn and statsmodels are installed.</li>
-        <li>Limits: 5 s per <code className="text-zinc-300">on_tick</code>, 100 API calls per tick, 30 min per run, 1 GB memory.</li>
+        <li>Limits: 5 s per <code className="text-zinc-300">on_tick</code>, 100 API calls per tick, 30 min per run, about 250 MB of memory.</li>
         <li>One bot in the queue per team at a time. The leaderboard uses your latest successful run.</li>
       </ul>
       <form onSubmit={upload} className="mt-5 flex flex-wrap items-center gap-3">
